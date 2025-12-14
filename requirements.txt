@@ -1,0 +1,7 @@
+# P2P Chat Application Dependencies
+# ===================================
+# This project uses Python standard library only.
+# No external dependencies required!
+
+# For testing (optional):
+pytest>=7.0.0
