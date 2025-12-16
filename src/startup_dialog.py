@@ -36,6 +36,14 @@ class StartupDialog:
             selectbackground=self.accent_color,
             selectforeground='white'
         )
+        
+        # FIX: Map readonly state to dark background
+        style.map('TCombobox', 
+            fieldbackground=[('readonly', self.input_bg)],
+            selectbackground=[('readonly', self.input_bg)],
+            selectforeground=[('readonly', 'white')],
+            foreground=[('readonly', 'white')]
+        )
         # Attempt to style the dropdown listbox (requires specific option database hacking usually, but let's try popdown)
         self.root.option_add('*TCombobox*Listbox.background', self.input_bg)
         self.root.option_add('*TCombobox*Listbox.foreground', 'white')
