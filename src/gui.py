@@ -745,13 +745,13 @@ class P2PChatGUI:
     
     # ==================== Peer Callbacks ====================
     
-    def _on_message_received(self, sender: str, message):
+    def _on_message_received(self, sender_ip: str, sender_port: int, message):
         """Handle incoming message from peer."""
         from .protocol import MessageType
         
         def handle():
             if message.msg_type == MessageType.MESSAGE:
-                self._log_incoming(sender, message.payload)
+                self._log_incoming(sender_ip, sender_port, message.payload)
             elif message.msg_type == MessageType.CONNECTION_REQUEST:
                 # Parse payload: USERNAME:PORT
                 requester_name = "Unknown User"
@@ -767,16 +767,16 @@ class P2PChatGUI:
                     requester_name = message.payload
                 
                 # Register this peer so we can show their name in messages
-                peer_info = (sender, requester_port, requester_name)
-                # Remove old entry if exists (by IP)
-                self.all_discovered_peers = {p for p in self.all_discovered_peers if p[0] != sender}
+                peer_info = (sender_ip, requester_port, requester_name)
+                # Remove old entry if exists (by IP AND port to handle multiple connections)
+                self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == sender_port)}
                 self.all_discovered_peers.add(peer_info)
                 
                 # NOW add to pending and update UI (after peer info is registered)
-                self.pending_requests.add(sender)
+                self.pending_requests.add(sender_ip)
                 self._update_pending_ui()
                 
-                self._log_system(f"Connection request from {requester_name} ({sender}:{requester_port})")
+                self._log_system(f"Connection request from {requester_name} ({sender_ip}:{requester_port})")
             elif message.msg_type == MessageType.CONNECTION_ACCEPT:
                 # Parse payload: USERNAME:PORT (if available)
                 accepter_name = "Unknown User"
@@ -793,17 +793,17 @@ class P2PChatGUI:
                     accepter_name = message.payload
                 
                 # Register this peer
-                peer_info = (sender, accepter_port, accepter_name)
-                self.all_discovered_peers = {p for p in self.all_discovered_peers if p[0] != sender}
+                peer_info = (sender_ip, accepter_port, accepter_name)
+                self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == sender_port)}
                 self.all_discovered_peers.add(peer_info)
                 
                 # Track as approved connection
                 self.approved_peer_info.add(peer_info)
                 
-                self._log_system(f"Connection accepted by {accepter_name} [{sender}:{accepter_port}]!")
+                self._log_system(f"Connection accepted by {accepter_name} [{sender_ip}:{accepter_port}]!")
                 self._update_connected_list()
             elif message.msg_type == MessageType.CONNECTION_REJECT:
-                self._log_error(f"Connection rejected by {self._get_peer_display_name(sender)}")
+                self._log_error(f"Connection rejected by {self._get_peer_display_name(sender_ip, sender_port)}")
         
         self.root.after(0, handle)
     
@@ -811,13 +811,17 @@ class P2PChatGUI:
         """Handle new peer connection."""
         pass
     
-    def _on_peer_disconnected(self, peer_ip: str):
+    def _on_peer_disconnected(self, peer_ip: str, peer_port: int = None):
         """Handle peer disconnection."""
         def handle():
-            self._log_system(f"Peer disconnected: {self._get_peer_display_name(peer_ip)}")
+            self._log_system(f"Peer disconnected: {self._get_peer_display_name(peer_ip, peer_port)}")
             
-            # Remove all approved peer info from this IP
-            self.approved_peer_info = {p for p in self.approved_peer_info if p[0] != peer_ip}
+            # Remove specific approved peer info by IP and port
+            if peer_port is not None:
+                self.approved_peer_info = {p for p in self.approved_peer_info if not (p[0] == peer_ip and p[1] == peer_port)}
+            else:
+                # Fallback: remove all from this IP
+                self.approved_peer_info = {p for p in self.approved_peer_info if p[0] != peer_ip}
             
             self.pending_requests.discard(peer_ip)
             self._update_pending_ui()
@@ -880,8 +884,8 @@ class P2PChatGUI:
                 return f"{username} [{ip}:{peer_port}]"
         return f"[{ip}]"
 
-    def _log_incoming(self, sender: str, text: str):
-        display_name = self._get_peer_display_name(sender)
+    def _log_incoming(self, sender_ip: str, sender_port: int, text: str):
+        display_name = self._get_peer_display_name(sender_ip, sender_port)
         self._log_message(f"{display_name}: {text}", 'incoming')
     
     def _log_outgoing(self, text: str):

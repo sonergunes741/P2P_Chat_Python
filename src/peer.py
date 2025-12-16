@@ -242,24 +242,24 @@ class Peer:
     
     # ==================== Event Callbacks ====================
     
-    def _on_message_received(self, sender: str, message: Message) -> None:
+    def _on_message_received(self, sender_ip: str, sender_port: int, message: Message) -> None:
         """Handle incoming chat message or handshake."""
         if message.msg_type == MessageType.MESSAGE:
-            self.cli.print_incoming_message(sender, message.payload)
+            self.cli.print_incoming_message(sender_ip, message.payload)
             
         elif message.msg_type == MessageType.CONNECTION_REQUEST:
-            self.cli.print_system(f"{sender} wants to connect. Type '/accept {sender}' or '/reject {sender}'")
+            self.cli.print_system(f"{sender_ip} wants to connect. Type '/accept {sender_ip}' or '/reject {sender_ip}'")
             
         elif message.msg_type == MessageType.CONNECTION_ACCEPT:
-            self.cli.print_success(f"Connection accepted by {sender}. You can now chat!")
+            self.cli.print_success(f"Connection accepted by {sender_ip}. You can now chat!")
             
         elif message.msg_type == MessageType.CONNECTION_REJECT:
-            self.cli.print_error(f"Connection rejected by {sender}.")
+            self.cli.print_error(f"Connection rejected by {sender_ip}.")
     
     def _on_peer_connected(self, peer_ip: str) -> None:
         """Handle new peer connection."""
         self.cli.print_connection(f"Peer connected: {peer_ip}")
     
-    def _on_peer_disconnected(self, peer_ip: str) -> None:
+    def _on_peer_disconnected(self, peer_ip: str, peer_port: int = None) -> None:
         """Handle peer disconnection."""
         self.cli.print_connection(f"Peer disconnected: {peer_ip}")
