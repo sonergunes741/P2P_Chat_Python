@@ -37,6 +37,17 @@ def parse_arguments() -> argparse.Namespace:
         default=5001,
         help='UDP port for peer discovery (default: 5001)'
     )
+    parser.add_argument(
+        '--username', '-u',
+        type=str,
+        help='Username for auto-start'
+    )
+    
+    parser.add_argument(
+        '--auto', '-a',
+        action='store_true',
+        help='Skip startup dialog and auto-start'
+    )
     
     return parser.parse_args()
 
@@ -51,23 +62,30 @@ def main() -> int:
         from src.gui import P2PChatGUI
         from src.startup_dialog import StartupDialog
         
-        # 1. Launch Startup Dialog
-        # (Pass args.port as default suggestion if needed, but for now strict dialog control)
-        dialog = StartupDialog()
+        username = None
+        port = args.port
         
-        # Override default port in dialog if provided via CLI
-        if args.port != 5000:
-            dialog.port_combo.set(str(args.port))
+        # Check for auto-start mode
+        if args.auto and args.username:
+            username = args.username
+            # Port is already in args.port (default 5000)
+        else:
+            # 1. Launch Startup Dialog
+            dialog = StartupDialog()
             
-        settings = dialog.run()
-        
-        # If user closed dialog or cancelled
-        if not settings:
-            print("Session cancelled.")
-            return 0
+            # Override default port in dialog if provided via CLI
+            if args.port != 5000:
+                dialog.port_combo.set(str(args.port))
+                
+            settings = dialog.run()
             
-        username = settings['username']
-        port = settings['port']
+            # If user closed dialog or cancelled
+            if not settings:
+                print("Session cancelled.")
+                return 0
+                
+            username = settings['username']
+            port = settings['port']
         
         # 2. Initialize Peer
         print(f"Starting {username} on port {port}...")

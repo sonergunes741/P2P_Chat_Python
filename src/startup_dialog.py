@@ -10,7 +10,7 @@ class StartupDialog:
     def __init__(self):
         self.result = None
         self.root = tk.Tk()
-        self.root.title("P2P Chat - Setup")
+        self.root.title("P2P Communication - Setup")
         self.root.geometry("400x450")
         self.root.resizable(False, False)
         
@@ -153,6 +153,11 @@ class StartupDialog:
         
         if not username:
              messagebox.showwarning("Required", "Username is required to continue.")
+             self.username_entry.focus()
+             return
+        
+        if len(username) > 12:
+             messagebox.showwarning("Username Too Long", "Username must be 12 characters or less.\nCurrent length: " + str(len(username)))
              self.username_entry.focus()
              return
             

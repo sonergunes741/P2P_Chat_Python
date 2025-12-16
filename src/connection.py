@@ -216,7 +216,7 @@ class ConnectionManager:
         self.local_ip = local_ip
         self.port = port
         
-        self._connections: Dict[str, PeerConnection] = {}
+        self._connections: Dict[str, list] = {}  # Map IP to LIST of PeerConnections
         self._server_socket: Optional[socket.socket] = None
         self._accepting = False
         self._accept_thread: Optional[threading.Thread] = None
@@ -229,6 +229,19 @@ class ConnectionManager:
     def connected_peers(self) -> list:
         """List of connected peer IPs."""
         return list(self._connections.keys())
+
+    def get_connection(self, ip: str, port: int = None) -> Optional[PeerConnection]:
+        """Get a specific connection by IP and optionally port."""
+        if ip not in self._connections:
+            return None
+        
+        if port is not None:
+            for conn in self._connections[ip]:
+                if conn.peer_port == port:
+                    return conn
+        
+        # If no port specified or not found, return the most recent one
+        return self._connections[ip][-1] if self._connections[ip] else None
     
     def set_message_callback(self, callback: Callable[[str, Message], None]) -> None:
         """Set callback for incoming messages."""
@@ -313,7 +326,8 @@ class ConnectionManager:
     def is_peer_approved(self, peer_ip: str) -> bool:
         """Check if connection to peer is approved."""
         if peer_ip in self._connections:
-            return self._connections[peer_ip].is_approved
+            # Return true if ANY connection from this IP is approved
+            return any(c.is_approved for c in self._connections[peer_ip])
         return False
 
     def accept_connection(self, peer_ip: str) -> bool:
@@ -321,18 +335,27 @@ class ConnectionManager:
         if peer_ip not in self._connections:
             return False
         
-        conn = self._connections[peer_ip]
-        if conn.is_approved:
-            return True
+        # Find unapproved connection
+        target_conn = None
+        for conn in self._connections[peer_ip]:
+            if not conn.is_approved:
+                target_conn = conn
+                break
+                
+        if not target_conn:
+            # Check if we have any approved one, if so return True (already connected)
+            if self.is_peer_approved(peer_ip):
+                return True
+            return False
             
         try:
             # Send ACCEPT message
             msg = create_connection_accept("")
             # Need to send raw bytes because send_message is blocked for unapproved
-            conn.socket.sendall(msg.to_bytes() + b'\n')
+            target_conn.socket.sendall(msg.to_bytes() + b'\n')
             
             # Update local state
-            conn.is_approved = True
+            target_conn.is_approved = True
             logger.info(f"Accepted connection from {peer_ip}")
             return True
         except Exception as e:
@@ -345,22 +368,31 @@ class ConnectionManager:
             return
             
         try:
-            conn = self._connections[peer_ip]
-            # Send REJECT message
-            msg = create_connection_reject("")
-            conn.socket.sendall(msg.to_bytes() + b'\n')
+            # Reject all unapproved connections from this IP
+            for conn in self._connections[peer_ip]:
+                if not conn.is_approved:
+                    msg = create_connection_reject("")
+                    try:
+                        conn.socket.sendall(msg.to_bytes() + b'\n')
+                    except Exception:
+                        pass
         except Exception:
             pass
             
+        # We don't necessarily disconnect everyone, just the pending ones?
+        # For simplicity, let's keep old behavior: disconnect IP
         self.disconnect_peer(peer_ip)
 
     def connect_to_peer(self, peer_ip: str, peer_port: int = 5000) -> bool:
         """
         Initiate a connection to a peer.
         """
+        # Check if we are already connected to this IP:PORT
         if peer_ip in self._connections:
-            logger.warning(f"Already connected to {peer_ip}")
-            return True
+            for conn in self._connections[peer_ip]:
+                if conn.peer_port == peer_port:
+                    logger.warning(f"Already connected to {peer_ip}:{peer_port}")
+                    return True
         
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -371,9 +403,6 @@ class ConnectionManager:
             # Create connection wrapper
             conn = self._add_connection(peer_ip, peer_port, sock)
             
-            # Connection request is now sent by the GUI with username:port payload
-            # So we just establish the connection here
-            
             logger.info(f"Connected to peer {peer_ip}:{peer_port}")
             return True
         
@@ -382,29 +411,37 @@ class ConnectionManager:
             return False
     
     def disconnect_peer(self, peer_ip: str) -> None:
-        """Disconnect from a specific peer."""
+        """Disconnect from a specific peer (all connections to that IP)."""
         if peer_ip in self._connections:
-            self._connections[peer_ip].disconnect()
-            # Use pop to avoid KeyError if callback already removed it
-            self._connections.pop(peer_ip, None)
+            # Disconnect all
+            for conn in list(self._connections[peer_ip]):
+                conn.disconnect()
+            
+            # Key should be removed by callback, but force it
+            if peer_ip in self._connections:
+                del self._connections[peer_ip]
     
     def send_to_peer(self, peer_ip: str, content: str) -> bool:
         """Send a message to a specific peer."""
         if peer_ip not in self._connections:
             return False
-        return self._connections[peer_ip].send_message(content)
+        
+        # Send to all approved connections for this IP
+        sent = False
+        for conn in self._connections[peer_ip]:
+            if conn.send_message(content):
+                sent = True
+        return sent
     
     def broadcast_message(self, content: str) -> int:
         """
         Send a message to all connected peers.
-        
-        Returns:
-            Number of peers the message was sent to
         """
         count = 0
-        for peer_ip in list(self._connections.keys()):
-            if self.send_to_peer(peer_ip, content):
-                count += 1
+        for peer_list in self._connections.values():
+            for conn in peer_list:
+                if conn.send_message(content):
+                    count += 1
         return count
     
     def _add_connection(
@@ -422,7 +459,10 @@ class ConnectionManager:
             on_disconnect=self._handle_peer_disconnect
         )
         
-        self._connections[peer_ip] = conn
+        if peer_ip not in self._connections:
+            self._connections[peer_ip] = []
+        self._connections[peer_ip].append(conn)
+        
         conn.start_receiving()
         
         if self._on_peer_connected:
@@ -432,8 +472,33 @@ class ConnectionManager:
     
     def _handle_peer_disconnect(self, peer_ip: str) -> None:
         """Handle peer disconnection."""
-        if peer_ip in self._connections:
-            del self._connections[peer_ip]
+        # Find which connection triggered this?
+        # Actually _handle_disconnect uses peer_ip.
+        # It's hard to know WHICH connection died if we only get IP.
+        # But wait, PeerConnection calls this.
+        # We need to cleanup closed connections.
         
-        if self._on_peer_disconnected:
-            self._on_peer_disconnected(peer_ip)
+        if peer_ip in self._connections:
+            # Filter out disconnected ones
+            approved_disconnect = False
+            
+            # We iterate backwards to safely remove
+            for i in range(len(self._connections[peer_ip]) - 1, -1, -1):
+                conn = self._connections[peer_ip][i]
+                if not conn.is_connected:
+                    if conn.is_approved:
+                        approved_disconnect = True
+                    self._connections[peer_ip].pop(i)
+            
+            if not self._connections[peer_ip]:
+                del self._connections[peer_ip]
+                
+                # Notify GUI if the last approved connection is gone?
+                # Or if ANY approved connection is gone?
+                # Let's say if we lost connection to the IP entirely (or partly)
+                if approved_disconnect and self._on_peer_disconnected:
+                    self._on_peer_disconnected(peer_ip)
+            elif approved_disconnect:
+                # Still have connections, but one approved died.
+                # Maybe notify? 
+                pass
