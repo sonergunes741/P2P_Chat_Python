@@ -76,23 +76,38 @@ class PeerDiscovery:
         # Create UDP socket for broadcasting
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.settimeout(0.5)  # Short timeout for receiving
+        sock.settimeout(2.0)  # Increased timeout for receiving
         
         try:
+            # Bind to local interface to ensure correct source IP and interface selection
+            try:
+                sock.bind((self.local_ip, 0))
+            except Exception as e:
+                logger.warning(f"Could not bind to {self.local_ip}: {e}")
+
             # Send discovery broadcast
             # Format: IP:USERNAME:PORT
             payload = f"{self.local_ip}:{self.username}:{self.tcp_port}"
-            discovery_msg = create_discovery_message(payload, 0) # Payload contains everything method signature might need adjustment or we just misuse payload
-            # Wait, create_discovery_message takes (sender_ip, sender_port). Let's adjust helper usage.
-            # Actually, standard protocol was taking sender_ip and port. We need to jam username in there.
-            # Let's override the payload manually to be safe.
             
             msg = Message(MessageType.DISCOVERY, self.local_ip, payload)
             
-            sock.sendto(
-                msg.to_bytes(),
-                (self.BROADCAST_ADDRESS, self.broadcast_port)
-            )
+            # Determine broadcast targets
+            targets = {self.BROADCAST_ADDRESS}
+            
+            # Add subnet broadcast (assuming /24 which is standard for most LANs)
+            try:
+                parts = self.local_ip.split('.')
+                if len(parts) == 4:
+                    subnet_broadcast = f"{parts[0]}.{parts[1]}.{parts[2]}.255"
+                    targets.add(subnet_broadcast)
+            except Exception:
+                pass
+            
+            for target in targets:
+                try:
+                    sock.sendto(msg.to_bytes(), (target, self.broadcast_port))
+                except Exception as e:
+                    logger.debug(f"Failed to send to {target}: {e}")
             
             # Collect responses
             start_time = time.time()
@@ -118,6 +133,7 @@ class PeerDiscovery:
         try:
             msg = Message.from_bytes(data)
             peer_ip = addr[0]
+            logger.debug(f"Received discovery response from {peer_ip}: {msg}")
             
             if msg.msg_type == MessageType.DISCOVERY_RESPONSE:
                 payload_parts = msg.payload.split(':')
@@ -201,10 +217,18 @@ class PeerDiscovery:
         sock.settimeout(1.0)
         
         try:
-            sock.bind(('', self.broadcast_port))
+            # Bind specifically to local IP to listen only on correct interface
+            sock.bind((self.local_ip, self.broadcast_port))
+            logger.info(f"Bound discovery listener to {self.local_ip}:{self.broadcast_port}")
         except Exception as e:
-            logger.error(f"Could not bind to discovery port: {e}")
-            return
+            logger.error(f"Could not bind to discovery port on {self.local_ip}: {e}")
+            # Fallback to ANY if specific bind fails
+            try:
+                sock.bind(('', self.broadcast_port))
+                logger.warning(f"Fallback: Bound discovery listener to INADDR_ANY:{self.broadcast_port}")
+            except Exception as e2:
+                logger.error(f"Could not bind to discovery port ANY: {e2}")
+                return
         
         while self._listening:
             try:
