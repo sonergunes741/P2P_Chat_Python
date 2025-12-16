@@ -40,8 +40,8 @@ class PeerConnection:
         peer_ip: str,
         peer_port: int,
         sock: socket.socket,
-        on_message: Optional[Callable[[str, Message], None]] = None,
-        on_disconnect: Optional[Callable[[str], None]] = None
+        on_message: Optional[Callable[[str, int, Message], None]] = None,
+        on_disconnect: Optional[Callable[[str, int], None]] = None
     ):
         self.peer_ip = peer_ip
         self.peer_port = peer_port
@@ -160,23 +160,23 @@ class PeerConnection:
             elif msg.msg_type == MessageType.CONNECTION_REQUEST:
                 # Let the manager/peer handle the approval logic
                 if self._on_message:
-                    self._on_message(self.peer_ip, msg)
+                    self._on_message(self.peer_ip, self.peer_port, msg)
             
             elif msg.msg_type == MessageType.CONNECTION_ACCEPT:
                 self._is_approved = True
                 if self._on_message:
-                    self._on_message(self.peer_ip, msg)
+                    self._on_message(self.peer_ip, self.peer_port, msg)
             
             elif msg.msg_type == MessageType.CONNECTION_REJECT:
                 logger.info(f"Connection rejected by {self.peer_address}")
                 self._handle_disconnect()
                 if self._on_message:
-                    self._on_message(self.peer_ip, msg)
+                    self._on_message(self.peer_ip, self.peer_port, msg)
 
             elif msg.msg_type == MessageType.MESSAGE:
                 if self._is_approved:
                     if self._on_message:
-                        self._on_message(self.peer_ip, msg)
+                        self._on_message(self.peer_ip, self.peer_port, msg)
                 else:
                      logger.warning(f"Ignored message from unapproved peer {self.peer_address}")
                     
@@ -196,7 +196,7 @@ class PeerConnection:
             pass
         
         if self._on_disconnect:
-            self._on_disconnect(self.peer_ip)
+            self._on_disconnect(self.peer_ip, self.peer_port)
 
 
 class ConnectionManager:
@@ -243,8 +243,8 @@ class ConnectionManager:
         # If no port specified or not found, return the most recent one
         return self._connections[ip][-1] if self._connections[ip] else None
     
-    def set_message_callback(self, callback: Callable[[str, Message], None]) -> None:
-        """Set callback for incoming messages."""
+    def set_message_callback(self, callback: Callable[[str, int, Message], None]) -> None:
+        """Set callback for incoming messages. Callback receives (ip, port, message)."""
         self._on_message = callback
     
     def set_connect_callback(self, callback: Callable[[str], None]) -> None:
@@ -470,17 +470,16 @@ class ConnectionManager:
             
         return conn
     
-    def _handle_peer_disconnect(self, peer_ip: str) -> None:
+    def _handle_peer_disconnect(self, peer_ip: str, peer_port: int) -> None:
         """Handle peer disconnection."""
         # Find which connection triggered this?
-        # Actually _handle_disconnect uses peer_ip.
-        # It's hard to know WHICH connection died if we only get IP.
-        # But wait, PeerConnection calls this.
+        # Actually _handle_disconnect uses peer_ip and peer_port now.
         # We need to cleanup closed connections.
         
         if peer_ip in self._connections:
             # Filter out disconnected ones
             approved_disconnect = False
+            disconnected_port = peer_port
             
             # We iterate backwards to safely remove
             for i in range(len(self._connections[peer_ip]) - 1, -1, -1):
@@ -488,6 +487,7 @@ class ConnectionManager:
                 if not conn.is_connected:
                     if conn.is_approved:
                         approved_disconnect = True
+                        disconnected_port = conn.peer_port
                     self._connections[peer_ip].pop(i)
             
             if not self._connections[peer_ip]:
@@ -497,7 +497,7 @@ class ConnectionManager:
                 # Or if ANY approved connection is gone?
                 # Let's say if we lost connection to the IP entirely (or partly)
                 if approved_disconnect and self._on_peer_disconnected:
-                    self._on_peer_disconnected(peer_ip)
+                    self._on_peer_disconnected(peer_ip, disconnected_port)
             elif approved_disconnect:
                 # Still have connections, but one approved died.
                 # Maybe notify? 
