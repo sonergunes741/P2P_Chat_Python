@@ -50,9 +50,11 @@ class P2PChatGUI:
         self.root.configure(bg=self.COLORS['bg_dark'])
         
         # Data storage
-        self.pending_requests: Set[str] = set()
+        self.pending_requests: Set[Tuple[str, int, str]] = set()  # (ip, listening_port, username)
         self.all_discovered_peers: Set[Tuple[str, int, str]] = set()
         self.approved_peer_info: Set[Tuple[str, int, str]] = set()  # Track approved connections (ip, port, username)
+        # Map ephemeral port to listening port for same-IP identification
+        self.ephemeral_to_listening: dict = {}  # {(ip, ephemeral_port): listening_port}
         
         # Setup styles
         self._setup_styles()
@@ -668,27 +670,39 @@ class P2PChatGUI:
     def _on_accept(self):
         """Accept pending connection."""
         if self.pending_requests:
-            peer_ip = next(iter(self.pending_requests))
+            # pending_requests now contains (ip, port, username) tuples
+            pending_tuple = next(iter(self.pending_requests))
+            peer_ip, peer_port, peer_username = pending_tuple
             
             # Get connection list
             conns = self.peer.connections._connections.get(peer_ip)
             if not conns:
                 self._log_error(f"Connection not found for {peer_ip}")
-                self.pending_requests.discard(peer_ip)
+                self.pending_requests.discard(pending_tuple)
                 self._update_pending_ui()
                 return
             
-            # Find the first unapproved connection
+            # Find the unapproved connection that matches this pending request
+            # We need to find the connection whose ephemeral port maps to peer_port
             conn = None
-            # Handle list structure (new)
             for c in conns:
                 if not c.is_approved:
-                    conn = c
-                    break
+                    # Check if this connection's ephemeral port maps to the listening port
+                    mapped_port = self.ephemeral_to_listening.get((peer_ip, c.peer_port))
+                    if mapped_port == peer_port:
+                        conn = c
+                        break
+            
+            # Fallback: if no mapping found, just take first unapproved
+            if not conn:
+                for c in conns:
+                    if not c.is_approved:
+                        conn = c
+                        break
             
             if not conn:
                 self._log_system("No pending connection to accept.")
-                self.pending_requests.discard(peer_ip)
+                self.pending_requests.discard(pending_tuple)
                 self._update_pending_ui()
                 return
             
@@ -702,18 +716,13 @@ class P2PChatGUI:
                 # Update connection state
                 conn.is_approved = True
                 
-                # Find and track approved peer info from all_discovered_peers
-                for d_ip, d_port, d_user in self.all_discovered_peers:
-                    if d_ip == peer_ip:
-                        self.approved_peer_info.add((d_ip, d_port, d_user))
-                        break
+                # Track approved peer info directly from the pending request
+                self.approved_peer_info.add((peer_ip, peer_port, peer_username))
                 
-                self._log_system(f"Accepted connection from {self._get_peer_display_name(peer_ip)}")
+                self._log_system(f"Accepted connection from {peer_username} [{peer_ip}:{peer_port}]")
                 
-                # Check if any more unapproved connections exist from this IP
-                any_pending = any(not c.is_approved for c in conns)
-                if not any_pending:
-                    self.pending_requests.discard(peer_ip)
+                # Remove this specific pending request
+                self.pending_requests.discard(pending_tuple)
                     
                 self._update_pending_ui()
                 self._update_connected_list()
@@ -723,10 +732,12 @@ class P2PChatGUI:
     def _on_reject(self):
         """Reject pending connection."""
         if self.pending_requests:
-            peer_ip = next(iter(self.pending_requests))
+            # pending_requests now contains (ip, port, username) tuples
+            pending_tuple = next(iter(self.pending_requests))
+            peer_ip, peer_port, peer_username = pending_tuple
             self.peer.connections.reject_connection(peer_ip)
-            self._log_system(f"Rejected connection from {self._get_peer_display_name(peer_ip)}")
-            self.pending_requests.discard(peer_ip)
+            self._log_system(f"Rejected connection from {peer_username} [{peer_ip}:{peer_port}]")
+            self.pending_requests.discard(pending_tuple)
             self._update_pending_ui()
     
     def _on_send_message(self, event):
@@ -768,12 +779,15 @@ class P2PChatGUI:
                 
                 # Register this peer so we can show their name in messages
                 peer_info = (sender_ip, requester_port, requester_name)
-                # Remove old entry if exists (by IP AND port to handle multiple connections)
-                self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == sender_port)}
+                # Remove old entry if exists (by IP AND listening port)
+                self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == requester_port)}
                 self.all_discovered_peers.add(peer_info)
                 
-                # NOW add to pending and update UI (after peer info is registered)
-                self.pending_requests.add(sender_ip)
+                # Map ephemeral port to listening port for later message identification
+                self.ephemeral_to_listening[(sender_ip, sender_port)] = requester_port
+                
+                # NOW add to pending and update UI (with full peer info)
+                self.pending_requests.add((sender_ip, requester_port, requester_name))
                 self._update_pending_ui()
                 
                 self._log_system(f"Connection request from {requester_name} ({sender_ip}:{requester_port})")
@@ -794,8 +808,11 @@ class P2PChatGUI:
                 
                 # Register this peer
                 peer_info = (sender_ip, accepter_port, accepter_name)
-                self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == sender_port)}
+                self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == accepter_port)}
                 self.all_discovered_peers.add(peer_info)
+                
+                # Map ephemeral port to listening port for later message identification
+                self.ephemeral_to_listening[(sender_ip, sender_port)] = accepter_port
                 
                 # Track as approved connection
                 self.approved_peer_info.add(peer_info)
@@ -814,16 +831,25 @@ class P2PChatGUI:
     def _on_peer_disconnected(self, peer_ip: str, peer_port: int = None):
         """Handle peer disconnection."""
         def handle():
-            self._log_system(f"Peer disconnected: {self._get_peer_display_name(peer_ip, peer_port)}")
-            
-            # Remove specific approved peer info by IP and port
+            # Convert ephemeral port to listening port if mapping exists
+            listening_port = None
             if peer_port is not None:
-                self.approved_peer_info = {p for p in self.approved_peer_info if not (p[0] == peer_ip and p[1] == peer_port)}
+                listening_port = self.ephemeral_to_listening.get((peer_ip, peer_port), peer_port)
+                # Clean up the mapping
+                self.ephemeral_to_listening.pop((peer_ip, peer_port), None)
+            
+            self._log_system(f"Peer disconnected: {self._get_peer_display_name(peer_ip, listening_port)}")
+            
+            # Remove specific approved peer info by IP and listening port
+            if listening_port is not None:
+                self.approved_peer_info = {p for p in self.approved_peer_info if not (p[0] == peer_ip and p[1] == listening_port)}
+                # Also remove from pending requests (tuple format)
+                self.pending_requests = {p for p in self.pending_requests if not (p[0] == peer_ip and p[1] == listening_port)}
             else:
                 # Fallback: remove all from this IP
                 self.approved_peer_info = {p for p in self.approved_peer_info if p[0] != peer_ip}
+                self.pending_requests = {p for p in self.pending_requests if p[0] != peer_ip}
             
-            self.pending_requests.discard(peer_ip)
             self._update_pending_ui()
             self._update_connected_list()
             self._filter_peers()
@@ -835,9 +861,9 @@ class P2PChatGUI:
     def _update_pending_ui(self):
         """Update pending connection request UI."""
         if self.pending_requests:
-            peer_ip = next(iter(self.pending_requests))
-            # Use display name format like other places (username [IP:port])
-            peer_display = self._get_peer_display_name(peer_ip)
+            # pending_requests now contains (ip, port, username) tuples
+            peer_ip, peer_port, peer_username = next(iter(self.pending_requests))
+            peer_display = f"{peer_username} [{peer_ip}:{peer_port}]"
             self.pending_label.config(text=f"⚠ {peer_display} wants to connect")
             self.pending_frame.pack(fill=tk.X, pady=(0, 5))
         else:
@@ -885,7 +911,9 @@ class P2PChatGUI:
         return f"[{ip}]"
 
     def _log_incoming(self, sender_ip: str, sender_port: int, text: str):
-        display_name = self._get_peer_display_name(sender_ip, sender_port)
+        # Convert ephemeral port to listening port if mapping exists
+        listening_port = self.ephemeral_to_listening.get((sender_ip, sender_port), sender_port)
+        display_name = self._get_peer_display_name(sender_ip, listening_port)
         self._log_message(f"{display_name}: {text}", 'incoming')
     
     def _log_outgoing(self, text: str):
