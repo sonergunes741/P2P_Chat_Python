@@ -38,27 +38,30 @@ class PeerDiscovery:
         self,
         local_ip: str,
         broadcast_port: int = 5001,
-        tcp_port: int = 5000
+        tcp_port: int = 5000,
+        username: str = "User"
     ):
         self.local_ip = local_ip
         self.broadcast_port = broadcast_port
         self.tcp_port = tcp_port
+        self.username = username
         
-        self._discovered_peers: Set[Tuple[str, int]] = set()
+        # Store (ip, port, username)
+        self._discovered_peers: Set[Tuple[str, int, str]] = set()
         self._listening = False
         self._listen_thread: Optional[threading.Thread] = None
-        self._on_peer_discovered: Optional[Callable[[str, int], None]] = None
+        self._on_peer_discovered: Optional[Callable[[str, int, str], None]] = None
     
     @property
-    def discovered_peers(self) -> Set[Tuple[str, int]]:
-        """Returns set of discovered peers as (ip, port) tuples."""
+    def discovered_peers(self) -> Set[Tuple[str, int, str]]:
+        """Returns set of discovered peers as (ip, port, username) tuples."""
         return self._discovered_peers.copy()
     
-    def set_peer_discovered_callback(self, callback: Callable[[str, int], None]) -> None:
+    def set_peer_discovered_callback(self, callback: Callable[[str, int, str], None]) -> None:
         """Set callback function to be called when a new peer is discovered."""
         self._on_peer_discovered = callback
     
-    def broadcast_discovery(self, timeout: float = 3.0) -> Set[Tuple[str, int]]:
+    def broadcast_discovery(self, timeout: float = 3.0) -> Set[Tuple[str, int, str]]:
         """
         Broadcast a discovery message and collect responses.
         
@@ -66,7 +69,7 @@ class PeerDiscovery:
             timeout: How long to wait for responses (seconds)
             
         Returns:
-            Set of discovered peers as (ip, port) tuples
+            Set of discovered peers as (ip, port, username) tuples
         """
         logger.info("Broadcasting discovery message...")
         
@@ -77,10 +80,17 @@ class PeerDiscovery:
         
         try:
             # Send discovery broadcast
-            # Include our TCP port in the message so local peers can distinguish us
-            discovery_msg = create_discovery_message(self.local_ip, self.tcp_port)
+            # Format: IP:USERNAME:PORT
+            payload = f"{self.local_ip}:{self.username}:{self.tcp_port}"
+            discovery_msg = create_discovery_message(payload, 0) # Payload contains everything method signature might need adjustment or we just misuse payload
+            # Wait, create_discovery_message takes (sender_ip, sender_port). Let's adjust helper usage.
+            # Actually, standard protocol was taking sender_ip and port. We need to jam username in there.
+            # Let's override the payload manually to be safe.
+            
+            msg = Message(MessageType.DISCOVERY, self.local_ip, payload)
+            
             sock.sendto(
-                discovery_msg.to_bytes(),
+                msg.to_bytes(),
                 (self.BROADCAST_ADDRESS, self.broadcast_port)
             )
             
@@ -110,20 +120,47 @@ class PeerDiscovery:
             peer_ip = addr[0]
             
             if msg.msg_type == MessageType.DISCOVERY_RESPONSE:
-                peer_tcp_port = int(msg.payload)
+                payload_parts = msg.payload.split(':')
+                
+                peer_username = "Unknown"
+                peer_tcp_port = 5000
+                
+                # Format: IP:USERNAME:PORT (New)
+                if len(payload_parts) == 3:
+                    peer_username = payload_parts[1]
+                    try:
+                        peer_tcp_port = int(payload_parts[2])
+                    except ValueError:
+                        return
+                        
+                # Format: USERNAME:PORT (Response format)
+                elif len(payload_parts) == 2:
+                    peer_username = payload_parts[0]
+                    try:
+                         peer_tcp_port = int(payload_parts[1])
+                    except ValueError:
+                         return
+                         
+                # Format: PORT (Legacy)
+                elif len(payload_parts) == 1:
+                    try:
+                        peer_tcp_port = int(payload_parts[0])
+                    except ValueError:
+                        return
                 
                 # Ignore our own responses (same IP AND same Port)
                 if peer_ip == self.local_ip and peer_tcp_port == self.tcp_port:
                     return
                 
-                peer_info = (peer_ip, peer_tcp_port)
+                peer_info = (peer_ip, peer_tcp_port, peer_username)
                 
-                if peer_info not in self._discovered_peers:
+                existing = [p for p in self._discovered_peers if p[0] == peer_ip and p[1] == peer_tcp_port]
+                if not existing:
                     self._discovered_peers.add(peer_info)
-                    logger.info(f"Discovered peer: {peer_ip}:{peer_tcp_port}")
+                    logger.info(f"Discovered peer: {peer_username} ({peer_ip}:{peer_tcp_port})")
                     
                     if self._on_peer_discovered:
-                        self._on_peer_discovered(peer_ip, peer_tcp_port)
+                        self._on_peer_discovered(peer_ip, peer_tcp_port, peer_username)
                         
         except Exception as e:
             logger.debug(f"Could not parse discovery response: {e}")
@@ -193,21 +230,35 @@ class PeerDiscovery:
             peer_ip = addr[0]
             
             if msg.msg_type == MessageType.DISCOVERY:
-                # Parse sender's TCP port from payload if available
+                # Parse sender's TCP port from payload
+                # Format: IP:USERNAME:PORT (New)
                 sender_tcp_port = 0
-                if ":" in msg.payload:
-                    try:
-                        _, port_str = msg.payload.split(":", 1)
-                        sender_tcp_port = int(port_str)
-                    except ValueError:
-                        pass
+                parts = msg.payload.split(':')
+                
+                if len(parts) == 3:
+                     try:
+                         sender_tcp_port = int(parts[2])
+                     except ValueError:
+                         pass
+                elif len(parts) == 2:
+                     try:
+                         sender_tcp_port = int(parts[1])
+                     except ValueError:
+                         pass
+                elif len(parts) == 1:
+                     try:
+                         sender_tcp_port = int(parts[0])
+                     except ValueError:
+                         pass
                 
                 # Ignore our own broadcasts (same IP AND same Port)
                 if peer_ip == self.local_ip and sender_tcp_port == self.tcp_port:
                     return
 
-                # Send response with our TCP port
-                response = create_discovery_response(self.local_ip, self.tcp_port)
+                # Send response with our Username and TCP port
+                # Format: USERNAME:PORT
+                response_payload = f"{self.username}:{self.tcp_port}"
+                response = Message(MessageType.DISCOVERY_RESPONSE, self.local_ip, response_payload)
                 sock.sendto(response.to_bytes(), addr)
                 logger.debug(f"Responded to discovery from {peer_ip}")
                 

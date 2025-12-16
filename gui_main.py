@@ -49,15 +49,36 @@ def main() -> int:
         # Import here to avoid circular imports
         from src.peer import Peer, get_local_ip
         from src.gui import P2PChatGUI
+        from src.startup_dialog import StartupDialog
         
-        # Create peer instance (without starting CLI)
+        # 1. Launch Startup Dialog
+        # (Pass args.port as default suggestion if needed, but for now strict dialog control)
+        dialog = StartupDialog()
+        
+        # Override default port in dialog if provided via CLI
+        if args.port != 5000:
+            dialog.port_combo.set(str(args.port))
+            
+        settings = dialog.run()
+        
+        # If user closed dialog or cancelled
+        if not settings:
+            print("Session cancelled.")
+            return 0
+            
+        username = settings['username']
+        port = settings['port']
+        
+        # 2. Initialize Peer
+        print(f"Starting {username} on port {port}...")
         peer = Peer(
-            tcp_port=args.port,
-            broadcast_port=args.broadcast_port
+            tcp_port=port,
+            broadcast_port=args.broadcast_port,
+            username=username
         )
         
-        # Create and run GUI
-        gui = P2PChatGUI(peer)
+        # 3. Create and run GUI with username
+        gui = P2PChatGUI(peer, username=username)
         gui.run()
         
         return 0

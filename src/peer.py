@@ -61,17 +61,20 @@ class Peer:
     def __init__(
         self,
         tcp_port: int = 5000,
-        broadcast_port: int = 5001
+        broadcast_port: int = 5001,
+        username: str = "User"
     ):
         self.local_ip = get_local_ip()
         self.tcp_port = tcp_port
         self.broadcast_port = broadcast_port
+        self.username = username
         
         # Initialize components
         self.discovery = PeerDiscovery(
             local_ip=self.local_ip,
             broadcast_port=broadcast_port,
-            tcp_port=tcp_port
+            tcp_port=tcp_port,
+            username=username
         )
         
         self.connections = ConnectionManager(

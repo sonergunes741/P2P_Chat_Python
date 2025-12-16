@@ -371,12 +371,10 @@ class ConnectionManager:
             # Create connection wrapper
             conn = self._add_connection(peer_ip, peer_port, sock)
             
-            # Send connection request immediately
-            req_msg = create_connection_request("")
-            # Direct send to bypass approval check (since we are initiating)
-            sock.sendall(req_msg.to_bytes() + b'\n')
+            # Connection request is now sent by the GUI with username:port payload
+            # So we just establish the connection here
             
-            logger.info(f"Connected to peer {peer_ip}:{peer_port}, sent request")
+            logger.info(f"Connected to peer {peer_ip}:{peer_port}")
             return True
         
         except Exception as e:

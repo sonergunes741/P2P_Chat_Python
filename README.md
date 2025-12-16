@@ -1,122 +1,165 @@
-# ⚡ P2P Chat Application
+# 💬 P2P Chat - Serverless LAN Messenger
 
-**Serverless, Secure, and Cross-Platform Peer-to-Peer Communication Tool**
+**Modern, güvenli ve kullanımı kolay Peer-to-Peer sohbet uygulaması**
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)]()
 
-Please scroll down for **Turkish (Türkçe)** explanation.
+---
+
+## ✨ Özellikler
+
+- 🚀 **Anında Başlat** - Kurulum gerektirmez, çalıştır ve konuş
+- 🔍 **Otomatik Keşif** - Ağdaki diğer kullanıcıları tek tıkla bul
+- 🛡️ **Güvenli** - Onaylamadığınız kişiler size mesaj atamaz
+- 🎨 **Modern Arayüz** - Dark theme, kullanımı kolay GUI
+- 📱 **Kullanıcı Dostu** - Username, IP ve port bilgileri açıkça görünür
+- 🔌 **Sunucusuz** - Merkezi sunucu yok, direkt P2P bağlantı
+- 🌐 **Cross-Platform** - Windows, Linux ve macOS
 
 ---
 
-## 🇺🇸 English Overview
+## 🚀 Hızlı Başlangıç
 
-P2P Chat is a robust messaging application that allows users to communicate directly over a Local Area Network (LAN) without needing a central server. It features a modern Engineer-style GUI, automatic peer discovery, and secure connection handshakes.
+### 1️⃣ Gereksinimler
+- Python 3.8+ (Sadece standart kütüphane)
 
-### Key Features
-*   **📡 Serverless:** True Peer-to-Peer architecture.
-*   **🔍 Auto-Discovery:** Find other users on the network automatically via UDP broadcast.
-*   **🛡️ Secure Handshake:** Users must approve connection requests before chatting.
-*   **💻 Cross-Platform:** Runs on Windows, Linux, and macOS.
-*   **🎛️ Dual Interface:** Comes with both a Professional GUI and a Command-Line Interface (CLI).
-*   **📦 Easy Setup:** Includes a standalone Windows Installer.
+### 2️⃣ Kurulum
+```bash
+git clone https://github.com/sonergunes741/P2P_Chat_Python.git
+cd P2P_Chat_Python
+```
 
----
+### 3️⃣ Çalıştır
+```bash
+python gui_main.py
+```
 
-## 🇹🇷 Türkçe Proje Tanıtımı
+İlk açılışta:
+1. **Kullanıcı Adı** gir
+2. **Port** seç (varsayılan: 5000)
+3. **START SESSION** butonuna bas
 
-Bu proje, merkezi bir sunucuya ihtiyaç duymadan, yerel ağ (LAN) üzerindeki bilgisayarların doğrudan birbiriyle haberleşmesini sağlayan gelişmiş bir sohbet uygulamasıdır. Ağ programlama ve dağıtık sistemler dersi kapsamında geliştirilmiştir.
-
-### 🌟 Temel Özellikler
-1.  **Sunucusuz İletişim:** Mesajlar internete çıkmadan, doğrudan cihazlar arasında gider.
-2.  **Otomatik Keşif:** "Ağı Tara" butonu ile aynı ağdaki diğer kullanıcıları otomatik bulur.
-3.  **Güvenli Bağlantı:** Biri size bağlanmak istediğinde **Onay/Red** ekranı çıkar. Tanımadığınız kişi size mesaj atamaz.
-4.  **Mühendis Arayüzü:** Koyu modlu, sade ve işlevsel Grafik Arayüz (GUI).
-5.  **Platform Bağımsız:** Windows, Linux ve macOS üzerinde çalışır.
+> 🔒 **Firewall Uyarısı:** İlk açılışta Windows/macOS firewall izin isteyecektir - **Allow/İzin Ver** seçeneğini seçin.
 
 ---
 
-## 📥 Kurulum ve Çalıştırma (Installation)
+## 📖 Nasıl Kullanılır?
 
-Uygulamayı çalıştırmanın iki yolu vardır:
-1.  **Son Kullanıcı (Kolay Yol):** Hazır kurulum dosyasını kullanmak.
-2.  **Geliştirici (Kod Yolu):** Python kodlarını çalıştırmak.
+### Birini Bul ve Bağlan
+1. **SCAN NETWORK** butonuna bas
+2. Found Peers listesinden birini seç
+3. **CONNECT** butonuna bas
+4. Karşı tarafta ACCEPT/REJECT butonları görünür
+5. **ACCEPT** denirse bağlantı kurulur
 
-### Yöntem 1: Windows Installer ile Kurulum (Önerilen) ✨
-Kodlarla uğraşmak istemiyorsanız:
-1.  `installer/` klasöründeki `P2P_Chat_Setup.exe` dosyasını indirin ve kurun.
-2.  Masaüstündeki **P2P Chat** ikonuna çift tıklayın.
-3.  **Önemli:** İlk açılışta Windows Güvenlik Duvarı sorarsa **"Erişime İzin Ver" (Allow Access)** diyerek onaylayın.
+### Mesaj At
+- Bağlı olduğun kişiler "Connected Peers" listesinde ✓ işaretiyle görünür
+- Alt kısımdaki mesaj kutusuna yaz ve **SEND** bas veya **Enter**'a bas
 
-### Yöntem 2: Python ile Çalıştırma
-Geliştiriciler veya kaynak koddan çalıştırmak isteyenler için:
-
-**Gereksinimler:**
-*   Python 3.8 veya üzeri yüklü olmalıdır.
-
-**Adımlar:**
-1.  Projeyi indirin:
-    ```bash
-    git clone https://github.com/sonergunes741/P2P_Chat_Python.git
-    cd P2P_Chat_Python
-    ```
-2.  Gerekli kütüphaneleri yükleyin (Sadece standart kütüphane kullanılır, ekstra pip install gerekmez ama yine de `requirements.txt` kontrol edilebilir):
-    ```bash
-    pip install -r requirements.txt
-    ```
-3.  Uygulamayı başlatın:
-    ```bash
-    # Grafik Arayüz (GUI) için:
-    python gui_main.py
-
-    # Komut Satırı (CLI) için:
-    python main.py
-    ```
-
-**🔥 Aynı Bilgisayarda Test Etmek İçin:**
-İki farklı terminal açın ve farklı portlar kullanın:
-*   Terminal 1: `python gui_main.py`
-*   Terminal 2: `python gui_main.py --port 5002`
+### Bağlantıyı Kes
+- Connected Peers'dan birini seç
+- **DISCONNECT** butonuna bas
 
 ---
 
-## 🛠️ Exe Oluşturma (Build)
+## 🔧 Aynı Bilgisayarda Test
 
-Kendi `.exe` dosyanızı veya kurulum paketinizi oluşturmak isterseniz:
+Farklı portlar kullanarak aynı PC'de birden fazla kullanıcı oluştur:
 
-1.  **PyInstaller Yükleyin:**
-    ```bash
-    pip install pyinstaller
-    ```
-2.  **Build Scriptini Çalıştırın:**
-    ```bash
-    python build.py
-    ```
-    Bu işlem `dist/` klasöründe `P2P_Chat.exe` oluşturacaktır.
+**Terminal 1:**
+```bash
+python gui_main.py
+# Port: 5000, Username: Ali
+```
 
-3.  **Installer Oluşturma (Opsiyonel):**
-    *   [Inno Setup](https://jrsoftware.org/isinfo.php) programını indirin.
-    *   `installer.iss` dosyasını Inno Setup ile açıp "Compile" butonuna basın.
+**Terminal 2:**
+```bash
+python gui_main.py
+# Port: 5001, Username: Veli
+```
 
----
-
-## ⚠️ Sorun Giderme (Troubleshooting)
-
-**S: Diğer bilgisayarı göremiyorum?**
-*   **C:** İki bilgisayarın da aynı Wi-Fi/Ağ üzerinde olduğundan emin olun.
-*   **C:** **Windows Güvenlik Duvarı (Firewall)** engelini kontrol edin. TCP 5000 ve UDP 5001 portlarına izin verilmelidir. Installer sürümü bunu otomatik yapar.
-
-**S: Bağlanıyorum ama mesaj gitmiyor?**
-*   **C:** Bağlantı kurulduğunda sağ üstte "Onay Bekliyor" uyarısı çıkar. **ACCEPT** butonuna basarak bağlantıyı onaylamanız gerekir.
+Scan yap → Birbirinizi bulun → Bağlanın!
 
 ---
 
-## 👥 Ekip Üyeleri (Team)
+## 🏗️ Proje Yapısı
 
-*   **240104004201** Soner Güneş
-*   **210104004039** Ömer Faruk Olkay
-*   **2101040040xx** Ahmet Baha Çepni
+```
+P2P_Chat_Python/
+├── src/
+│   ├── gui.py              # Ana GUI (Tkinter)
+│   ├── peer.py             # Peer yönetimi
+│   ├── discovery.py        # UDP broadcast keşif
+│   ├── connection.py       # TCP bağlantı yöneticisi
+│   ├── protocol.py         # Mesaj protokolü
+│   └── startup_dialog.py   # Başlangıç ekranı
+├── gui_main.py             # GUI başlatıcı
+├── main.py                 # CLI başlatıcı
+└── README.md
+```
 
 ---
-*Educational Purpose Project - Network Programming*
+
+## ❓ Sık Sorulan Sorular
+
+**Q: Diğer kullanıcıları göremiyorum?**
+- Aynı Wi-Fi/LAN ağında olduğunuzdan emin olun
+- Firewall izinlerini kontrol edin (TCP 5000, UDP 5001)
+
+**Q: Bağlantı kuruluyor ama mesaj alamıyorum?**
+- Karşı tarafın bağlantıyı ACCEPT ettiğinden emin olun
+- Connected Peers listesinde ✓ işareti görünmeli
+
+**Q: Farklı port nasıl kullanırım?**
+- Startup Dialog'da port dropdown'ından seçin
+- CLI: `python gui_main.py --port 5002`
+
+---
+
+## 🛠️ Gelişmiş Kullanım
+
+### CLI Modu
+```bash
+python main.py --port 5000
+```
+
+Komutlar:
+- `discover` - Ağı tara
+- `connect <IP>` - Bağlan
+- `send <mesaj>` - Mesaj gönder
+- `exit` - Çıkış
+
+### Build .exe (Windows)
+```bash
+pip install pyinstaller
+python build.py
+```
+`dist/P2P_Chat.exe` oluşacak
+
+---
+
+## 🧪 Teknik Detaylar
+
+- **Discovery:** UDP Broadcast (Port 5001)
+- **Communication:** TCP (Port 5000+ seçilebilir)
+- **Protocol:** JSON-based message format
+- **Handshake:** Connection Request/Accept/Reject
+- **Threading:** Async message handling
+
+---
+
+## 👥 Ekip
+
+- **Soner Güneş** (240104004201)
+- **Ömer Faruk Olkay** (210104004039)
+- **Ahmet Baha Çepni** (2101040040xx)
+
+---
+
+## 📜 Lisans
+
+MIT License - Educational Purpose Project
+
+**Ağ Programlama Dersi | Network Programming Course**
