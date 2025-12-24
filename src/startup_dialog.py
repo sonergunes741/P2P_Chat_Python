@@ -3,9 +3,6 @@ from tkinter import ttk, messagebox
 import socket
 
 class StartupDialog:
-    """
-    Elegant startup dialog to configure connection settings.
-    """
     
     def __init__(self):
         self.result = None
@@ -14,8 +11,6 @@ class StartupDialog:
         self.root.geometry("400x450")
         self.root.resizable(False, False)
         
-        # Use simple dark theme directly since logic is simple
-        # Colors match main GUI
         self.bg_color = '#121212'
         self.fg_color = '#d4d4d4'
         self.accent_color = '#007acc'
@@ -23,7 +18,6 @@ class StartupDialog:
         
         self.root.configure(bg=self.bg_color)
         
-        # Configure drop-down style
         style = ttk.Style()
         style.theme_use('clam')
         style.configure(
@@ -37,14 +31,12 @@ class StartupDialog:
             selectforeground='white'
         )
         
-        # FIX: Map readonly state to dark background
         style.map('TCombobox', 
             fieldbackground=[('readonly', self.input_bg)],
             selectbackground=[('readonly', self.input_bg)],
             selectforeground=[('readonly', 'white')],
             foreground=[('readonly', 'white')]
         )
-        # Attempt to style the dropdown listbox (requires specific option database hacking usually, but let's try popdown)
         self.root.option_add('*TCombobox*Listbox.background', self.input_bg)
         self.root.option_add('*TCombobox*Listbox.foreground', 'white')
         self.root.option_add('*TCombobox*Listbox.selectBackground', self.accent_color)
@@ -54,15 +46,12 @@ class StartupDialog:
         self._build_ui()
         
     def _is_port_free(self, port):
-        """Check if a port is free."""
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             return s.connect_ex(('localhost', port)) != 0
         
     def _build_ui(self):
-        # Center the window
         self.root.eval('tk::PlaceWindow . center')
         
-        # Title
         title_lbl = tk.Label(
             self.root, 
             text="WELCOME", 
@@ -81,11 +70,9 @@ class StartupDialog:
         )
         subtitle_lbl.pack(pady=(0, 30))
         
-        # Form Container
         form_frame = tk.Frame(self.root, bg=self.bg_color)
         form_frame.pack(fill=tk.X, padx=40)
         
-        # Username
         tk.Label(
             form_frame, 
             text="USERNAME *", 
@@ -106,7 +93,6 @@ class StartupDialog:
         self.username_entry.pack(fill=tk.X, pady=(0, 20), ipady=3)
         self.username_entry.focus()
         
-        # Port
         tk.Label(
             form_frame, 
             text="PORT", 
@@ -115,7 +101,6 @@ class StartupDialog:
             fg=self.fg_color
         ).pack(anchor=tk.W, pady=(0, 5))
         
-        # Default ports range
         available_ports = [str(p) for p in range(5000, 5011)]
         
         self.port_combo = ttk.Combobox(
@@ -129,14 +114,13 @@ class StartupDialog:
             
         self.port_combo.pack(fill=tk.X, pady=(0, 30), ipady=3)
         
-        # Start Button
         start_btn = tk.Button(
             self.root,
             text="START SESSION",
             font=('Segoe UI', 11, 'bold'),
             bg=self.accent_color,
             fg='white',
-            activebackground='#0098ff', # Lighter blue
+            activebackground='#0098ff',
             activeforeground='white',
             relief=tk.FLAT,
             cursor='hand2',
@@ -144,7 +128,6 @@ class StartupDialog:
         )
         start_btn.pack(fill=tk.X, padx=40, ipady=10)
         
-        # Bind enter key
         self.root.bind('<Return>', lambda e: self._on_start())
         
     def _on_start(self):

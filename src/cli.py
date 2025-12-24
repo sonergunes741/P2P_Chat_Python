@@ -1,9 +1,3 @@
-"""
-CLI Module
-==========
-Provides a command-line interface for the P2P chat application.
-"""
-
 import sys
 import threading
 from typing import Callable, Optional, Dict
@@ -11,7 +5,6 @@ from enum import Enum
 
 
 class Color:
-    """ANSI color codes for terminal output."""
     RESET = "\033[0m"
     BOLD = "\033[1m"
     
@@ -25,12 +18,10 @@ class Color:
     
     @classmethod
     def colorize(cls, text: str, color: str) -> str:
-        """Apply color to text."""
         return f"{color}{text}{cls.RESET}"
 
 
 class CommandType(Enum):
-    """Types of CLI commands."""
     DISCOVER = "discover"
     CONNECT = "connect"
     DISCONNECT = "disconnect"
@@ -43,7 +34,6 @@ class CommandType(Enum):
 
 
 class CLICommand:
-    """Represents a parsed CLI command."""
     
     def __init__(self, cmd_type: CommandType, args: list = None):
         self.type = cmd_type
@@ -51,19 +41,6 @@ class CLICommand:
 
 
 class ChatCLI:
-    """
-    Command-line interface for P2P chat.
-    
-    Commands:
-        /discover - Search for peers on the network
-        /connect <ip> [port] - Connect to a peer
-        /disconnect <ip> - Disconnect from a peer
-        /list - Show connected peers
-        /help - Show help message
-        /quit - Exit the application
-        /accept <ip> - Accept connection request
-        /reject <ip> - Reject connection request
-    """
     
     PROMPT = "> "
     COMMANDS = {
@@ -84,15 +61,12 @@ class ChatCLI:
         self._running = False
         self._input_lock = threading.Lock()
         
-        # Command handlers
         self._handlers: Dict[CommandType, Callable] = {}
     
     def register_handler(self, cmd_type: CommandType, handler: Callable) -> None:
-        """Register a handler for a command type."""
         self._handlers[cmd_type] = handler
     
     def print_banner(self) -> None:
-        """Print the welcome banner."""
         banner = f"""
 {Color.CYAN}{'═' * 55}
        P2P Chat Application - Welcome!
@@ -105,7 +79,6 @@ class ChatCLI:
         print(banner)
     
     def print_help(self) -> None:
-        """Print the help message."""
         help_text = f"""
 {Color.BOLD}Available Commands:{Color.RESET}
   {Color.CYAN}/discover{Color.RESET}           Search for peers on the network
@@ -124,70 +97,53 @@ class ChatCLI:
         print(help_text)
     
     def print_system(self, message: str) -> None:
-        """Print a system message."""
         with self._input_lock:
             print(f"\r{Color.YELLOW}[System]{Color.RESET} {message}")
             if self._running:
                 print(self.PROMPT, end='', flush=True)
     
     def print_error(self, message: str) -> None:
-        """Print an error message."""
         with self._input_lock:
             print(f"\r{Color.RED}[Error]{Color.RESET} {message}")
             if self._running:
                 print(self.PROMPT, end='', flush=True)
     
     def print_success(self, message: str) -> None:
-        """Print a success message."""
         with self._input_lock:
             print(f"\r{Color.GREEN}[OK]{Color.RESET} {message}")
             if self._running:
                 print(self.PROMPT, end='', flush=True)
     
     def print_discovery(self, message: str) -> None:
-        """Print a discovery-related message."""
         with self._input_lock:
             print(f"\r{Color.MAGENTA}[Discovery]{Color.RESET} {message}")
             if self._running:
                 print(self.PROMPT, end='', flush=True)
     
     def print_connection(self, message: str) -> None:
-        """Print a connection-related message."""
         with self._input_lock:
             print(f"\r{Color.BLUE}[Connection]{Color.RESET} {message}")
             if self._running:
                 print(self.PROMPT, end='', flush=True)
     
     def print_incoming_message(self, sender: str, content: str) -> None:
-        """Print an incoming chat message."""
         with self._input_lock:
             print(f"\r{Color.GREEN}[{sender}]{Color.RESET} {content}")
             if self._running:
                 print(self.PROMPT, end='', flush=True)
     
     def print_outgoing_message(self, content: str) -> None:
-        """Print confirmation of sent message."""
         with self._input_lock:
             print(f"\r{Color.CYAN}[You]{Color.RESET} {content}")
             if self._running:
                 print(self.PROMPT, end='', flush=True)
     
     def parse_command(self, user_input: str) -> CLICommand:
-        """
-        Parse user input into a command.
-        
-        Args:
-            user_input: Raw input from user
-            
-        Returns:
-            CLICommand object
-        """
         user_input = user_input.strip()
         
         if not user_input:
             return None
         
-        # Check if it's a command
         if user_input.startswith('/'):
             parts = user_input.split()
             cmd_str = parts[0].lower()
@@ -199,11 +155,9 @@ class ChatCLI:
                 self.print_error(f"Unknown command: {cmd_str}")
                 return None
         
-        # Regular message
         return CLICommand(CommandType.MESSAGE, [user_input])
     
     def run(self) -> None:
-        """Run the CLI main loop."""
         self._running = True
         self.print_banner()
         
@@ -219,7 +173,7 @@ class ChatCLI:
                 except EOFError:
                     break
                 except KeyboardInterrupt:
-                    print()  # New line after ^C
+                    print()
                     self._running = False
                     break
                     
@@ -227,11 +181,9 @@ class ChatCLI:
             self._running = False
     
     def stop(self) -> None:
-        """Stop the CLI."""
         self._running = False
     
     def _execute_command(self, command: CLICommand) -> None:
-        """Execute a parsed command."""
         if command.type == CommandType.HELP:
             self.print_help()
             return
@@ -241,7 +193,6 @@ class ChatCLI:
             self._running = False
             return
         
-        # Delegate to registered handler
         if command.type in self._handlers:
             self._handlers[command.type](command.args)
         else:

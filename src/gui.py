@@ -1,10 +1,3 @@
-"""
-GUI Module
-==========
-Professional Tkinter-based GUI for P2P Chat Application.
-Clean, functional, engineer-style interface.
-"""
-
 import tkinter as tk
 from tkinter import ttk, scrolledtext, messagebox
 import threading
@@ -13,34 +6,23 @@ import socket
 
 
 class P2PChatGUI:
-    """
-    Main GUI class for P2P Chat Application.
     
-    Features:
-    - Network info display
-    - Peer discovery with one click
-    - Easy connect/accept/reject
-    - Real-time chat
-    """
-    
-    # Color scheme - Professional Engineering / Dark Modern
     COLORS = {
-        'bg_dark': '#121212',      # Very dark charcoal
-        'bg_medium': '#1e1e1e',    # Standard dark gray (VS Code style)
-        'bg_light': '#2d2d30',     # Lighter gray for interactive elements
-        'accent': '#007acc',       # Professional Blue (Focus/Action)
-        'accent_hover': '#0098ff', # Brighter blue for hover
-        'text': '#d4d4d4',         # Soft white/light gray
-        'text_bright': '#ffffff',  # Bright white for importance
-        'text_dim': '#858585',     # Dimmed text
-        'success': '#4caf50',      # Modern Green
-        'warning': '#ffc107',      # Amber
-        'error': '#f44336',        # Modern Red
-        'border': '#333333'        # Subtle border
+        'bg_dark': '#121212',
+        'bg_medium': '#1e1e1e',
+        'bg_light': '#2d2d30',
+        'accent': '#007acc',
+        'accent_hover': '#0098ff',
+        'text': '#d4d4d4',
+        'text_bright': '#ffffff',
+        'text_dim': '#858585',
+        'success': '#4caf50',
+        'warning': '#ffc107',
+        'error': '#f44336',
+        'border': '#333333'
     }
     
     def __init__(self, peer, username="User"):
-        """Initialize GUI with a Peer instance."""
         self.peer = peer
         self.username = username
         self.root = tk.Tk()
@@ -49,63 +31,38 @@ class P2PChatGUI:
         self.root.minsize(640, 360)
         self.root.configure(bg=self.COLORS['bg_dark'])
         
-        # Data storage
-        self.pending_requests: Set[Tuple[str, int, str]] = set()  # (ip, listening_port, username)
+        self.pending_requests: Set[Tuple[str, int, str]] = set()
         self.all_discovered_peers: Set[Tuple[str, int, str]] = set()
-        self.approved_peer_info: Set[Tuple[str, int, str]] = set()  # Track approved connections (ip, port, username)
-        # Map ephemeral port to listening port for same-IP identification
-        self.ephemeral_to_listening: dict = {}  # {(ip, ephemeral_port): listening_port}
+        self.approved_peer_info: Set[Tuple[str, int, str]] = set()
+        self.ephemeral_to_listening: dict = {}
         
-        # Setup styles
         self._setup_styles()
-        
-        # Build UI
         self._build_ui()
-        
-        # Wire up peer callbacks
         self._setup_callbacks()
-        
-        # Start peer services
         self._start_peer()
 
-    # ... (styles and build_ui methods remain unchanged)
-
-
-    
-
-
     def _filter_peers(self):
-        """Filter peers - show only disconnected peers."""
         self.discovered_listbox.delete(0, tk.END)
         
         for ip, port, username in self.all_discovered_peers:
-            # Check if this SPECIFIC peer (IP+Port+Username) is approved/connected
             if (ip, port, username) not in self.approved_peer_info:
                 display_text = f"{username} [{ip}:{port}]"
                 self.discovered_listbox.insert(tk.END, display_text)
 
     def _on_search_peers(self, event):
-        """Handle search input change."""
         self._filter_peers()
     
-
-    
     def _on_disconnect_selected(self):
-        """Disconnect selected peer."""
         selection = self.connected_listbox.curselection()
         if not selection:
             return
             
-        # Parse connection string: "✓ USERNAME [IP:PORT]" or "✓ IP"
         item_text = self.connected_listbox.get(selection[0])
         
-        # Try to extract IP from brackets first
         if '[' in item_text and ']' in item_text:
-            # Format: "✓ USERNAME [IP:PORT]"
             bracket_content = item_text[item_text.index('[')+1:item_text.index(']')]
-            peer_ip = bracket_content.split(':')[0]  # Get IP part
+            peer_ip = bracket_content.split(':')[0]
         else:
-            # Fallback: "✓ IP"
             parts = item_text.split()
             if len(parts) >= 2:
                 peer_ip = parts[1]
@@ -113,21 +70,15 @@ class P2PChatGUI:
                 return
         
         self.peer.connections.disconnect_peer(peer_ip)
-    # Log removed to avoid duplication with _on_peer_disconnected callback
-    # self._log_system(f"Disconnected from {peer_ip}")
-
     
     def _setup_styles(self):
-        """Configure ttk styles for modern look."""
         style = ttk.Style()
         style.theme_use('clam')
         
-        # General configurations
         main_font = ('Segoe UI', 10)
         header_font = ('Segoe UI', 12, 'bold')
         mono_font = ('Consolas', 10)
         
-        # Button styles
         style.configure(
             'Action.TButton',
             background=self.COLORS['bg_light'],
@@ -142,7 +93,6 @@ class P2PChatGUI:
             foreground=[('active', 'white')]
         )
         
-        # Success button
         style.configure(
             'Success.TButton',
             background=self.COLORS['success'],
@@ -152,10 +102,9 @@ class P2PChatGUI:
             padding=(10, 8)
         )
         style.map('Success.TButton',
-            background=[('active', '#43a047')] # Slightly darker green on hover
+            background=[('active', '#43a047')]
         )
         
-        # Danger button
         style.configure(
             'Danger.TButton',
             background=self.COLORS['error'],
@@ -165,10 +114,9 @@ class P2PChatGUI:
             padding=(10, 8)
         )
         style.map('Danger.TButton',
-            background=[('active', '#d32f2f')] # Slightly darker red on hover
+            background=[('active', '#d32f2f')]
         )
         
-        # Label styles
         style.configure(
             'Header.TLabel',
             background=self.COLORS['bg_dark'],
@@ -191,92 +139,66 @@ class P2PChatGUI:
         )
     
     def _build_ui(self):
-        """Build the main UI layout."""
-        # Main container with padding
         main_frame = tk.Frame(self.root, bg=self.COLORS['bg_dark'])
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Top bar - Network Info
         self._build_top_bar(main_frame)
         
-        # --- Scrollable Content Area ---
-        # Create container for canvas and scrollbar
         content_container = tk.Frame(main_frame, bg=self.COLORS['bg_dark'], bd=0, highlightthickness=0)
         content_container.pack(fill=tk.BOTH, expand=True, pady=(10, 0))
         
-        # Canvas and Scrollbar setup
         self.canvas = tk.Canvas(content_container, bg=self.COLORS['bg_dark'], highlightthickness=0, bd=0)
         self.scrollbar = ttk.Scrollbar(content_container, orient="vertical", command=self.canvas.yview)
         
-        # Scrollable frame
         self.scrollable_frame = tk.Frame(self.canvas, bg=self.COLORS['bg_dark'])
         
-        # Create window in canvas
         self.canvas_window = self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
         
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
         
-        # Pack canvas (scrollbar packed dynamically)
         self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Event bindings for dynamic layout
         self.scrollable_frame.bind("<Configure>", self._on_frame_configure)
         self.canvas.bind("<Configure>", self._on_canvas_configure)
         
-        # --- Content Construction ---
-        # Left panel - Discovery & Peers
         self._build_left_panel(self.scrollable_frame)
         
-        # Right panel - Chat area
         self._build_chat_panel(self.scrollable_frame)
 
     def _on_frame_configure(self, event=None):
-        """Handle scrollable frame resizing."""
         self.canvas.configure(scrollregion=self.canvas.bbox("all"))
         self._check_scroll_necessity()
 
     def _on_canvas_configure(self, event=None):
-        """Handle canvas resizing."""
-        # Match width exactly
         self.canvas.itemconfig(self.canvas_window, width=event.width)
         self._check_scroll_necessity()
 
     def _check_scroll_necessity(self):
-        """Show/hide scrollbar based on content vs canvas height."""
-        # Get dimensions
         canvas_height = self.canvas.winfo_height()
         _, _, _, req_height = self.canvas.bbox("all") or (0,0,0,0)
         
         if req_height > canvas_height and canvas_height > 10:
-            # Content is taller than view - Show scrollbar
             if not self.scrollbar.winfo_ismapped():
                 self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-                # Re-bind mousewheel
                 self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)
         else:
-            # Content fits - Hide scrollbar
             if self.scrollbar.winfo_ismapped():
                 self.scrollbar.pack_forget()
                 self.canvas.unbind_all("<MouseWheel>")
                 self.canvas.yview_moveto(0)
             
-            # Specific fix: If content is smaller, force frame height to canvas height
-            # so relative packing (expand=True) works for full height visuals
             if canvas_height > 1:
                 self.canvas.itemconfig(self.canvas_window, height=canvas_height)
 
     def _on_mousewheel(self, event):
-        """Handle mousewheel scrolling."""
         if self.scrollbar.winfo_ismapped():
             self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
     
     def _build_top_bar(self, parent):
-        """Build the top information bar."""
         top_frame = tk.Frame(parent, bg=self.COLORS['bg_medium'], height=60)
         top_frame.pack(fill=tk.X)
         top_frame.pack_propagate(False)
         
-        # Left side - App title
         title_label = tk.Label(
             top_frame,
             text="P2P COMMUNICATION",
@@ -286,11 +208,9 @@ class P2PChatGUI:
         )
         title_label.pack(side=tk.LEFT, padx=15, pady=15)
         
-        # Right side - Network info
         info_frame = tk.Frame(top_frame, bg=self.COLORS['bg_medium'])
         info_frame.pack(side=tk.RIGHT, padx=15)
         
-        # IP Address (Selectable)
         tk.Label(
             info_frame,
             text="IP:",
@@ -312,7 +232,6 @@ class P2PChatGUI:
         self.ip_display.config(state='readonly')
         self.ip_display.pack(side=tk.LEFT, padx=(5, 15))
         
-        # Port (Selectable)
         tk.Label(
             info_frame,
             text="PORT:",
@@ -334,7 +253,6 @@ class P2PChatGUI:
         self.port_display.config(state='readonly')
         self.port_display.pack(side=tk.LEFT, padx=(5, 15))
         
-        # User Info
         user_label = tk.Label(
             info_frame,
             text=f"👤 {self.username.upper()}",
@@ -345,13 +263,10 @@ class P2PChatGUI:
         user_label.pack(side=tk.LEFT, padx=10)
     
     def _build_left_panel(self, parent):
-        """Build left panel with discovery and peer list."""
         left_frame = tk.Frame(parent, bg=self.COLORS['bg_dark'], width=340)
         left_frame.pack(side=tk.LEFT, fill=tk.Y, padx=(0, 10))
-        left_frame.pack_propagate(False)  # Force width to remain 340, allowing contents to expand
+        left_frame.pack_propagate(False)
         
-        # -- Discovery Section --
-    # -- Discovery Section --
         discovery_frame = tk.LabelFrame(
             left_frame,
             text=" NETWORK DISCOVERY ",
@@ -363,7 +278,6 @@ class P2PChatGUI:
         )
         discovery_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
-        # Connect button (Pack first to ensure visibility at bottom)
         self.connect_btn = ttk.Button(
             discovery_frame,
             text="CONNECT",
@@ -372,7 +286,6 @@ class P2PChatGUI:
         )
         self.connect_btn.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(5, 10))
         
-        # Discover button (Pack at top)
         self.discover_btn = ttk.Button(
             discovery_frame,
             text="SCAN NETWORK",
@@ -381,17 +294,15 @@ class P2PChatGUI:
         )
         self.discover_btn.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 5))
         
-        # Found Peers Label
         tk.Label(
             discovery_frame,
             text="FOUND PEERS",
             bg=self.COLORS['bg_dark'],
             fg=self.COLORS['text_dim'],
             font=('Segoe UI', 9, 'bold'),
-            anchor='w'  # Left align
+            anchor='w'
         ).pack(side=tk.TOP, fill=tk.X, padx=10, pady=(10, 5))
         
-        # Listbox with horizontal scroll
         discovered_list_frame = tk.Frame(discovery_frame, bg=self.COLORS['bg_dark'])
         discovered_list_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=5)
         
@@ -413,7 +324,6 @@ class P2PChatGUI:
         self.discovered_listbox.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         discovered_xscroll.config(command=self.discovered_listbox.xview)
         
-        # -- Connected Peers --
         connected_frame = tk.LabelFrame(
             left_frame,
             text=" CONNECTED PEERS ",
@@ -425,7 +335,6 @@ class P2PChatGUI:
         )
         connected_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 0))
         
-        # Disconnect button (Pack first to ensure visibility at bottom)
         self.disconnect_btn = ttk.Button(
             connected_frame,
             text="DISCONNECT",
@@ -434,7 +343,6 @@ class P2PChatGUI:
         )
         self.disconnect_btn.pack(side=tk.BOTTOM, fill=tk.X, padx=10, pady=(0, 10))
         
-        # Connected listbox with horizontal scroll
         connected_list_frame = tk.Frame(connected_frame, bg=self.COLORS['bg_dark'])
         connected_list_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=10)
         
@@ -456,13 +364,10 @@ class P2PChatGUI:
         connected_xscroll.config(command=self.connected_listbox.xview)
     
     def _build_chat_panel(self, parent):
-        """Build the main chat area."""
         chat_frame = tk.Frame(parent, bg=self.COLORS['bg_dark'])
         chat_frame.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         
-        # Pending requests notification
         self.pending_frame = tk.Frame(chat_frame, bg=self.COLORS['warning'])
-        # Hidden by default, shown when there are pending requests
         
         self.pending_label = tk.Label(
             self.pending_frame,
@@ -495,7 +400,6 @@ class P2PChatGUI:
         )
         self.reject_btn.pack(side=tk.LEFT, padx=5, pady=5)
         
-        # Chat display area
         chat_label_frame = tk.LabelFrame(
             chat_frame,
             text=" MESSAGES ",
@@ -516,17 +420,15 @@ class P2PChatGUI:
             state=tk.DISABLED,
             bd=0,
             highlightthickness=0,
-            height=12  # Reduce chat height to ensure fit on 540p screens
+            height=12
         )
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         
-        # Configure text tags for different message types
         self.chat_display.tag_configure('system', foreground=self.COLORS['warning'])
         self.chat_display.tag_configure('incoming', foreground=self.COLORS['success'])
         self.chat_display.tag_configure('outgoing', foreground=self.COLORS['accent_hover'])
         self.chat_display.tag_configure('error', foreground=self.COLORS['error'])
         
-        # Message input area
         input_frame = tk.Frame(chat_frame, bg=self.COLORS['bg_dark'])
         input_frame.pack(fill=tk.X, pady=(10, 0))
         
@@ -556,13 +458,11 @@ class P2PChatGUI:
         send_btn.pack(side=tk.RIGHT, padx=(10, 0), ipady=10)
     
     def _setup_callbacks(self):
-        """Wire up peer callbacks to GUI updates."""
         self.peer.connections.set_message_callback(self._on_message_received)
         self.peer.connections.set_connect_callback(self._on_peer_connected)
         self.peer.connections.set_disconnect_callback(self._on_peer_disconnected)
     
     def _start_peer(self):
-        """Start peer services."""
         if not self.peer.connections.start_server():
             messagebox.showerror("Error", "Could not start server. Port may be in use.")
             return
@@ -570,20 +470,15 @@ class P2PChatGUI:
         self.peer.discovery.start_listening()
     
     def run(self):
-        """Start the GUI main loop."""
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self.root.mainloop()
     
     def _on_close(self):
-        """Handle window close."""
         self.peer.discovery.stop_listening()
         self.peer.connections.stop_server()
         self.root.destroy()
     
-    # ==================== Event Handlers ====================
-    
     def _on_discover(self):
-        """Handle discover button click."""
         self.discover_btn.config(state=tk.DISABLED)
         self._log_system("Scanning network...")
         
@@ -595,12 +490,10 @@ class P2PChatGUI:
         threading.Thread(target=do_discover, daemon=True).start()
     
     def _update_discovered_peers(self, peers: Set[Tuple[str, int, str]]):
-        """Update the discovered peers list."""
         self.discover_btn.config(state=tk.NORMAL)
-        self.all_discovered_peers.update(peers)  # Merge new results with existing
+        self.all_discovered_peers.update(peers)
         self._filter_peers()
         
-        # Calculate filtered count (peers not currently connected)
         connected_ips = set(self.peer.connections.connected_peers)
         filtered_peers = [p for p in peers if p[0] not in connected_ips]
         count = len(filtered_peers)
@@ -608,28 +501,23 @@ class P2PChatGUI:
         if count > 0:
             self._log_system(f"Scan complete. Found {count} peer(s).")
         else:
-            # If we found peers but they are all connected to us
             if peers:
                 self._log_system("Scan complete. Found 0 new peer(s).")
             else:
                 self._log_system("No peers found on network")
     
     def _on_connect_selected(self):
-        """Connect to selected peer from discovery list."""
         selection = self.discovered_listbox.curselection()
         if not selection:
             messagebox.showwarning("Select Peer", "Please select a peer from the list")
             return
         
         peer_str = self.discovered_listbox.get(selection[0])
-        # Format: "Username [IP:Port]"
         try:
-            # Extract content inside last brackets
             last_open = peer_str.rfind('[')
             last_close = peer_str.rfind(']')
             
             if last_open == -1 or last_close == -1:
-                # Fallback for parentheses
                 last_open = peer_str.rfind('(')
                 last_close = peer_str.rfind(')')
                 if last_open == -1 or last_close == -1:
@@ -642,22 +530,16 @@ class P2PChatGUI:
         except Exception:
              self._log_error(f"Could not parse peer info: {peer_str}")
     
-
-    
     def _connect_to_peer(self, ip: str, port: int):
-        """Connect to a peer."""
         display_name = self._get_peer_display_name(ip, port)
         self._log_system(f"Connecting to {display_name}...")
         
         def do_connect():
             success = self.peer.connections.connect_to_peer(ip, port)
             if success:
-                # Send connection request with our username:port in payload
                 from .protocol import Message, MessageType
-                # Use get_connection with port to identify specific connection
                 conn = self.peer.connections.get_connection(ip, port)
                 if conn:
-                    # Payload is username:port
                     payload = f"{self.peer.username}:{self.peer.tcp_port}"
                     req = Message(MessageType.CONNECTION_REQUEST, self.peer.local_ip, payload)
                     conn.socket.sendall(req.to_bytes() + b'\n')
@@ -668,13 +550,10 @@ class P2PChatGUI:
         threading.Thread(target=do_connect, daemon=True).start()
     
     def _on_accept(self):
-        """Accept pending connection."""
         if self.pending_requests:
-            # pending_requests now contains (ip, port, username) tuples
             pending_tuple = next(iter(self.pending_requests))
             peer_ip, peer_port, peer_username = pending_tuple
             
-            # Get connection list
             conns = self.peer.connections._connections.get(peer_ip)
             if not conns:
                 self._log_error(f"Connection not found for {peer_ip}")
@@ -682,18 +561,14 @@ class P2PChatGUI:
                 self._update_pending_ui()
                 return
             
-            # Find the unapproved connection that matches this pending request
-            # We need to find the connection whose ephemeral port maps to peer_port
             conn = None
             for c in conns:
                 if not c.is_approved:
-                    # Check if this connection's ephemeral port maps to the listening port
                     mapped_port = self.ephemeral_to_listening.get((peer_ip, c.peer_port))
                     if mapped_port == peer_port:
                         conn = c
                         break
             
-            # Fallback: if no mapping found, just take first unapproved
             if not conn:
                 for c in conns:
                     if not c.is_approved:
@@ -707,21 +582,17 @@ class P2PChatGUI:
                 return
             
             try:
-                # Send ACCEPT message with our username:port
                 from .protocol import Message, MessageType
                 payload = f"{self.peer.username}:{self.peer.tcp_port}"
                 accept_msg = Message(MessageType.CONNECTION_ACCEPT, self.peer.local_ip, payload)
                 conn.socket.sendall(accept_msg.to_bytes() + b'\n')
                 
-                # Update connection state
                 conn.is_approved = True
                 
-                # Track approved peer info directly from the pending request
                 self.approved_peer_info.add((peer_ip, peer_port, peer_username))
                 
                 self._log_system(f"Accepted connection from {peer_username} [{peer_ip}:{peer_port}]")
                 
-                # Remove this specific pending request
                 self.pending_requests.discard(pending_tuple)
                     
                 self._update_pending_ui()
@@ -730,9 +601,7 @@ class P2PChatGUI:
                 self._log_error(f"Could not accept connection: {e}")
     
     def _on_reject(self):
-        """Reject pending connection."""
         if self.pending_requests:
-            # pending_requests now contains (ip, port, username) tuples
             pending_tuple = next(iter(self.pending_requests))
             peer_ip, peer_port, peer_username = pending_tuple
             self.peer.connections.reject_connection(peer_ip)
@@ -741,7 +610,6 @@ class P2PChatGUI:
             self._update_pending_ui()
     
     def _on_send_message(self, event):
-        """Send a chat message."""
         content = self.message_entry.get().strip()
         if not content:
             return
@@ -754,17 +622,13 @@ class P2PChatGUI:
         
         self.message_entry.delete(0, tk.END)
     
-    # ==================== Peer Callbacks ====================
-    
     def _on_message_received(self, sender_ip: str, sender_port: int, message):
-        """Handle incoming message from peer."""
         from .protocol import MessageType
         
         def handle():
             if message.msg_type == MessageType.MESSAGE:
                 self._log_incoming(sender_ip, sender_port, message.payload)
             elif message.msg_type == MessageType.CONNECTION_REQUEST:
-                # Parse payload: USERNAME:PORT
                 requester_name = "Unknown User"
                 requester_port = 5000
                 if message.payload and ':' in message.payload:
@@ -777,22 +641,17 @@ class P2PChatGUI:
                 elif message.payload:
                     requester_name = message.payload
                 
-                # Register this peer so we can show their name in messages
                 peer_info = (sender_ip, requester_port, requester_name)
-                # Remove old entry if exists (by IP AND listening port)
                 self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == requester_port)}
                 self.all_discovered_peers.add(peer_info)
                 
-                # Map ephemeral port to listening port for later message identification
                 self.ephemeral_to_listening[(sender_ip, sender_port)] = requester_port
                 
-                # NOW add to pending and update UI (with full peer info)
                 self.pending_requests.add((sender_ip, requester_port, requester_name))
                 self._update_pending_ui()
                 
                 self._log_system(f"Connection request from {requester_name} ({sender_ip}:{requester_port})")
             elif message.msg_type == MessageType.CONNECTION_ACCEPT:
-                # Parse payload: USERNAME:PORT (if available)
                 accepter_name = "Unknown User"
                 accepter_port = 5000
                 if message.payload and ':' in message.payload:
@@ -803,18 +662,14 @@ class P2PChatGUI:
                     except (ValueError, IndexError):
                         pass
                 elif message.payload and message.payload not in ["CONNECTION_ACCEPTED", "REQUEST_CONNECTION"]:
-                    # Legacy or just username
                     accepter_name = message.payload
                 
-                # Register this peer
                 peer_info = (sender_ip, accepter_port, accepter_name)
                 self.all_discovered_peers = {p for p in self.all_discovered_peers if not (p[0] == sender_ip and p[1] == accepter_port)}
                 self.all_discovered_peers.add(peer_info)
                 
-                # Map ephemeral port to listening port for later message identification
                 self.ephemeral_to_listening[(sender_ip, sender_port)] = accepter_port
                 
-                # Track as approved connection
                 self.approved_peer_info.add(peer_info)
                 
                 self._log_system(f"Connection accepted by {accepter_name} [{sender_ip}:{accepter_port}]!")
@@ -825,28 +680,21 @@ class P2PChatGUI:
         self.root.after(0, handle)
     
     def _on_peer_connected(self, peer_ip: str):
-        """Handle new peer connection."""
         pass
     
     def _on_peer_disconnected(self, peer_ip: str, peer_port: int = None):
-        """Handle peer disconnection."""
         def handle():
-            # Convert ephemeral port to listening port if mapping exists
             listening_port = None
             if peer_port is not None:
                 listening_port = self.ephemeral_to_listening.get((peer_ip, peer_port), peer_port)
-                # Clean up the mapping
                 self.ephemeral_to_listening.pop((peer_ip, peer_port), None)
             
             self._log_system(f"Peer disconnected: {self._get_peer_display_name(peer_ip, listening_port)}")
             
-            # Remove specific approved peer info by IP and listening port
             if listening_port is not None:
                 self.approved_peer_info = {p for p in self.approved_peer_info if not (p[0] == peer_ip and p[1] == listening_port)}
-                # Also remove from pending requests (tuple format)
                 self.pending_requests = {p for p in self.pending_requests if not (p[0] == peer_ip and p[1] == listening_port)}
             else:
-                # Fallback: remove all from this IP
                 self.approved_peer_info = {p for p in self.approved_peer_info if p[0] != peer_ip}
                 self.pending_requests = {p for p in self.pending_requests if p[0] != peer_ip}
             
@@ -856,12 +704,8 @@ class P2PChatGUI:
         
         self.root.after(0, handle)
     
-    # ==================== UI Updates ====================
-    
     def _update_pending_ui(self):
-        """Update pending connection request UI."""
         if self.pending_requests:
-            # pending_requests now contains (ip, port, username) tuples
             peer_ip, peer_port, peer_username = next(iter(self.pending_requests))
             peer_display = f"{peer_username} [{peer_ip}:{peer_port}]"
             self.pending_label.config(text=f"⚠ {peer_display} wants to connect")
@@ -870,21 +714,15 @@ class P2PChatGUI:
             self.pending_frame.pack_forget()
     
     def _update_connected_list(self):
-        """Update connected peers list."""
         self.connected_listbox.delete(0, tk.END)
         
-        # Show all approved connections (handles multiple connections per IP correctly)
         for ip, port, username in self.approved_peer_info:
             display_text = f"{username} [{ip}:{port}]"
             self.connected_listbox.insert(tk.END, display_text)
         
-        # Update Found Peers list to hide connected peers
         self._filter_peers()
     
-    # ==================== Logging ====================
-    
     def _log_message(self, text: str, tag: str = None):
-        """Log a message to chat display."""
         self.chat_display.config(state=tk.NORMAL)
         if tag:
             self.chat_display.insert(tk.END, text + "\n", tag)
@@ -897,21 +735,17 @@ class P2PChatGUI:
         self._log_message(f"[SYSTEM] {text}", 'system')
     
     def _get_peer_display_name(self, ip: str, port: int = None) -> str:
-        """Resolve IP to Username [IP:Port] format if available."""
-        # Prioritize exact match if port is provided
         if port is not None:
              for peer_ip, peer_port, username in self.all_discovered_peers:
                  if peer_ip == ip and peer_port == port:
                      return f"{username} [{ip}:{port}]"
                      
-        # Fallback to IP match
         for peer_ip, peer_port, username in self.all_discovered_peers:
             if peer_ip == ip:
                 return f"{username} [{ip}:{peer_port}]"
         return f"[{ip}]"
 
     def _log_incoming(self, sender_ip: str, sender_port: int, text: str):
-        # Convert ephemeral port to listening port if mapping exists
         listening_port = self.ephemeral_to_listening.get((sender_ip, sender_port), sender_port)
         display_name = self._get_peer_display_name(sender_ip, listening_port)
         self._log_message(f"{display_name}: {text}", 'incoming')

@@ -25,3 +25,12 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Build
+build/
+dist/
+*.spec
+*.exe
+
+# Presentation (large file)
+*.pptx

@@ -1,9 +1,3 @@
-"""
-Discovery Module
-=================
-Handles peer discovery on the local network using UDP broadcast.
-"""
-
 import socket
 import threading
 import time
@@ -17,19 +11,10 @@ from .protocol import (
     create_discovery_response
 )
 
-# Configure logging
 logger = logging.getLogger(__name__)
 
 
 class PeerDiscovery:
-    """
-    Handles UDP broadcast-based peer discovery on LAN.
-    
-    Attributes:
-        local_ip: The local IP address of this peer
-        broadcast_port: Port used for discovery broadcasts
-        tcp_port: TCP port to advertise for connections
-    """
     
     BROADCAST_ADDRESS = "255.255.255.255"
     BUFFER_SIZE = 1024
@@ -46,7 +31,6 @@ class PeerDiscovery:
         self.tcp_port = tcp_port
         self.username = username
         
-        # Store (ip, port, username)
         self._discovered_peers: Set[Tuple[str, int, str]] = set()
         self._listening = False
         self._listen_thread: Optional[threading.Thread] = None
@@ -54,47 +38,30 @@ class PeerDiscovery:
     
     @property
     def discovered_peers(self) -> Set[Tuple[str, int, str]]:
-        """Returns set of discovered peers as (ip, port, username) tuples."""
         return self._discovered_peers.copy()
     
     def set_peer_discovered_callback(self, callback: Callable[[str, int, str], None]) -> None:
-        """Set callback function to be called when a new peer is discovered."""
         self._on_peer_discovered = callback
     
     def broadcast_discovery(self, timeout: float = 3.0) -> Set[Tuple[str, int, str]]:
-        """
-        Broadcast a discovery message and collect responses.
-        
-        Args:
-            timeout: How long to wait for responses (seconds)
-            
-        Returns:
-            Set of discovered peers as (ip, port, username) tuples
-        """
         logger.info("Broadcasting discovery message...")
         
-        # Create UDP socket for broadcasting
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        sock.settimeout(2.0)  # Increased timeout for receiving
+        sock.settimeout(2.0)
         
         try:
-            # Bind to local interface to ensure correct source IP and interface selection
             try:
                 sock.bind((self.local_ip, 0))
             except Exception as e:
                 logger.warning(f"Could not bind to {self.local_ip}: {e}")
 
-            # Send discovery broadcast
-            # Format: IP:USERNAME:PORT
             payload = f"{self.local_ip}:{self.username}:{self.tcp_port}"
             
             msg = Message(MessageType.DISCOVERY, self.local_ip, payload)
             
-            # Determine broadcast targets
             targets = {self.BROADCAST_ADDRESS}
             
-            # Add subnet broadcast (assuming /24 which is standard for most LANs)
             try:
                 parts = self.local_ip.split('.')
                 if len(parts) == 4:
@@ -109,7 +76,6 @@ class PeerDiscovery:
                 except Exception as e:
                     logger.debug(f"Failed to send to {target}: {e}")
             
-            # Collect responses
             start_time = time.time()
             while time.time() - start_time < timeout:
                 try:
@@ -129,7 +95,6 @@ class PeerDiscovery:
         return self.discovered_peers
     
     def _handle_discovery_response(self, data: bytes, addr: Tuple[str, int]) -> None:
-        """Process a discovery response."""
         try:
             msg = Message.from_bytes(data)
             peer_ip = addr[0]
@@ -141,7 +106,6 @@ class PeerDiscovery:
                 peer_username = "Unknown"
                 peer_tcp_port = 5000
                 
-                # Format: IP:USERNAME:PORT (New)
                 if len(payload_parts) == 3:
                     peer_username = payload_parts[1]
                     try:
@@ -149,7 +113,6 @@ class PeerDiscovery:
                     except ValueError:
                         return
                         
-                # Format: USERNAME:PORT (Response format)
                 elif len(payload_parts) == 2:
                     peer_username = payload_parts[0]
                     try:
@@ -157,14 +120,12 @@ class PeerDiscovery:
                     except ValueError:
                          return
                          
-                # Format: PORT (Legacy)
                 elif len(payload_parts) == 1:
                     try:
                         peer_tcp_port = int(payload_parts[0])
                     except ValueError:
                         return
                 
-                # Ignore our own responses (same IP AND same Port)
                 if peer_ip == self.local_ip and peer_tcp_port == self.tcp_port:
                     return
                 
@@ -182,7 +143,6 @@ class PeerDiscovery:
             logger.debug(f"Could not parse discovery response: {e}")
     
     def start_listening(self) -> None:
-        """Start listening for discovery broadcasts from other peers."""
         if self._listening:
             logger.warning("Already listening for discovery broadcasts")
             return
@@ -196,7 +156,6 @@ class PeerDiscovery:
         logger.info(f"Listening for discovery broadcasts on port {self.broadcast_port}")
     
     def stop_listening(self) -> None:
-        """Stop listening for discovery broadcasts."""
         self._listening = False
         if self._listen_thread:
             self._listen_thread.join(timeout=1.0)
@@ -204,11 +163,9 @@ class PeerDiscovery:
         logger.info("Stopped listening for discovery broadcasts")
     
     def _listen_loop(self) -> None:
-        """Main loop for listening to discovery broadcasts."""
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         
-        # Enable broadcast receiving
         try:
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
         except Exception:
@@ -217,12 +174,10 @@ class PeerDiscovery:
         sock.settimeout(1.0)
         
         try:
-            # Bind specifically to local IP to listen only on correct interface
             sock.bind((self.local_ip, self.broadcast_port))
             logger.info(f"Bound discovery listener to {self.local_ip}:{self.broadcast_port}")
         except Exception as e:
             logger.error(f"Could not bind to discovery port on {self.local_ip}: {e}")
-            # Fallback to ANY if specific bind fails
             try:
                 sock.bind(('', self.broadcast_port))
                 logger.warning(f"Fallback: Bound discovery listener to INADDR_ANY:{self.broadcast_port}")
@@ -248,14 +203,11 @@ class PeerDiscovery:
         addr: Tuple[str, int],
         sock: socket.socket
     ) -> None:
-        """Handle an incoming discovery request and send response."""
         try:
             msg = Message.from_bytes(data)
             peer_ip = addr[0]
             
             if msg.msg_type == MessageType.DISCOVERY:
-                # Parse sender's TCP port from payload
-                # Format: IP:USERNAME:PORT (New)
                 sender_tcp_port = 0
                 parts = msg.payload.split(':')
                 
@@ -275,12 +227,9 @@ class PeerDiscovery:
                      except ValueError:
                          pass
                 
-                # Ignore our own broadcasts (same IP AND same Port)
                 if peer_ip == self.local_ip and sender_tcp_port == self.tcp_port:
                     return
 
-                # Send response with our Username and TCP port
-                # Format: USERNAME:PORT
                 response_payload = f"{self.username}:{self.tcp_port}"
                 response = Message(MessageType.DISCOVERY_RESPONSE, self.local_ip, response_payload)
                 sock.sendto(response.to_bytes(), addr)
@@ -290,5 +239,4 @@ class PeerDiscovery:
             logger.debug(f"Could not handle discovery request: {e}")
     
     def clear_discovered_peers(self) -> None:
-        """Clear the list of discovered peers."""
         self._discovered_peers.clear()
